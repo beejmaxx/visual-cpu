@@ -1,0 +1,359 @@
+/* Selected-clock activity stays next to the units it describes. */
+.machine-workspace {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.clock-focus {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-width: 0;
+  padding: 8px 10px 6px;
+  border: 1px solid #435763;
+  border-radius: 6px;
+  background: #16212a;
+}
+.machine-workspace > .core,
+.machine-workspace > .inspection {
+  grid-row: 2;
+}
+.clock-focus-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin-bottom: 6px;
+}
+#clock-focus-title {
+  min-width: 0;
+  font: 550 12px/1.35 var(--mono);
+  color: #e2e9ee;
+}
+#clock-focus-instruction {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11px/1.35 var(--mono);
+  color: #a8bbc8;
+}
+#clock-playback-note {
+  margin-left: auto;
+  max-width: 190px;
+  color: #b1c5d1;
+  font: 10px/1.3 var(--mono);
+}
+.clock-focus-heading button,
+.clock-focus-footer button {
+  flex-shrink: 0;
+  padding: 4px 7px;
+  font: 11px/1.25 var(--mono);
+  white-space: nowrap;
+  background: #1b2a34;
+}
+#clock-next-signal {
+  border-color: #518b82;
+  color: #9ce4d6;
+}
+.clock-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr) 18px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 4px;
+}
+.clock-flow-step {
+  --clock-color: var(--a);
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+  padding: 6px 9px;
+  text-align: left;
+  border-color: #354753;
+  border-radius: 4px;
+  background: #111c24;
+  transition: border-color 120ms, background-color 120ms;
+}
+.clock-flow-step[data-clock-step="1"] {
+  --clock-color: var(--b);
+}
+.clock-flow-step[data-clock-step="2"] {
+  --clock-color: var(--write);
+}
+.clock-flow-step:hover {
+  border-color: #718b9b;
+  background: #1c2d38;
+}
+.clock-flow-label {
+  color: #9eb3c1;
+  font: 10px/1.15 var(--mono);
+}
+.clock-flow-name {
+  color: #d5e1e8;
+  font: 550 12px/1.25 var(--mono);
+}
+.clock-flow-value {
+  color: #d3e6ec;
+  font: 12px/1.35 var(--mono);
+  overflow-wrap: anywhere;
+}
+.clock-flow-detail {
+  color: #a4b6c3;
+  font: 11px/1.3 var(--mono);
+}
+.clock-flow-step.active {
+  border-color: var(--clock-color);
+  background: #223541;
+  box-shadow: inset 3px 0 var(--clock-color);
+}
+.clock-flow-step.active .clock-flow-label,
+.clock-flow-step.active .clock-flow-value {
+  color: var(--clock-color);
+}
+.clock-flow-step.passed {
+  border-bottom-color: #64857e;
+  background: #17282d;
+}
+.clock-flow-step.future {
+  background: #121b22;
+  border-style: dashed;
+}
+.clock-flow-step.future .clock-flow-value {
+  color: #a4b7c3;
+}
+.clock-flow-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7892a0;
+  font: 18px/1 var(--mono);
+}
+.clock-flow-step.passed + .clock-flow-arrow {
+  color: var(--a);
+}
+.clock-focus-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 21px;
+  padding-top: 5px;
+}
+#clock-held-summary {
+  min-width: 0;
+  color: #adbfcb;
+  font: 11px/1.35 var(--mono);
+}
+.clock-focus.waiting {
+  border-color: #696049;
+}
+.clock-focus.waiting #clock-focus-title {
+  color: #ead3a0;
+}
+#clock-skip-wait {
+  color: var(--write);
+  border-color: #6d6145;
+}
+
+/* The same three colors connect the cards to the actual datapath. */
+.cpu-diagram.cycle-present .clock-input > rect,
+.cpu-diagram.cycle-present .clock-input .unit-cell {
+  stroke: var(--a);
+  stroke-width: 2.5;
+  stroke-opacity: 1;
+}
+.cpu-diagram.cycle-present .clock-work > rect,
+.cpu-diagram.cycle-present .clock-work .unit-cell {
+  stroke: var(--b);
+  stroke-width: 2.5;
+  stroke-opacity: 1;
+}
+.cpu-diagram.cycle-present .clock-latch > rect,
+.cpu-diagram.cycle-present .clock-latch .unit-cell {
+  stroke: var(--write);
+  stroke-width: 2.5;
+  stroke-opacity: 1;
+}
+.cpu-diagram.cycle-present .signal.clock-input,
+.cpu-diagram.cycle-present .signal.clock-work,
+.cpu-diagram.cycle-present .signal.clock-latch {
+  opacity: 1;
+  stroke-width: 3;
+}
+.cpu-diagram .signal.clock-input { stroke: var(--a); }
+.cpu-diagram .signal.clock-work { stroke: var(--b); }
+.cpu-diagram .signal.clock-latch { stroke: var(--write); }
+.cpu-diagram.cycle-present .clock-held-wire {
+  opacity: .6;
+  stroke: #a99570;
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+  animation: none;
+}
+.clock-carry {
+  pointer-events: none;
+}
+.clock-carry > rect {
+  fill: #11232c;
+  stroke: var(--b);
+}
+.clock-carry text {
+  fill: #d8e8f1;
+  font: 11px var(--mono);
+}
+
+@media (min-width: 1050px) and (min-height: 760px) {
+  .fit-workspace .machine-workspace {
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 7px;
+  }
+  .fit-workspace .main-column {
+    grid-template-rows: 30px 48px minmax(290px, 1fr) 220px;
+  }
+  .fit-workspace .main-column.scope-expanded {
+    grid-template-rows: 30px 48px minmax(260px, 1fr) 300px;
+  }
+  .fit-workspace .value-watch {
+    grid-template-rows: 29px 19px;
+  }
+  .fit-workspace .clock-focus {
+    padding: 6px 9px 5px;
+  }
+  .fit-workspace .clock-focus-heading {
+    gap: 7px;
+    margin-bottom: 5px;
+  }
+  .fit-workspace .clock-flow-step {
+    padding: 5px 8px;
+    gap: 2px;
+  }
+  .fit-workspace .clock-focus-footer {
+    padding-top: 4px;
+  }
+  .fit-workspace .machine-workspace > .core {
+    grid-column: 1;
+  }
+  .fit-workspace .machine-workspace.inspecting > .inspection {
+    grid-column: 2;
+  }
+  .fit-workspace .machine-workspace.wide-inspector > .inspection {
+    grid-column: 1;
+  }
+}
+
+@media (min-width: 1050px) and (max-width: 1399px) and (min-height: 760px) {
+  .fit-workspace .clock-focus-heading {
+    flex-wrap: wrap;
+    column-gap: 6px;
+    row-gap: 4px;
+  }
+  .fit-workspace #clock-focus-title {
+    flex: 1 1 35%;
+  }
+  .fit-workspace #clock-focus-instruction {
+    flex: 1 1 35%;
+    text-align: right;
+  }
+  .fit-workspace #clock-playback-note {
+    flex: 1 1 auto;
+    max-width: none;
+    margin-left: 0;
+  }
+  .fit-workspace .clock-flow-value {
+    font-size: 11px;
+  }
+  .fit-workspace .clock-flow-detail {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 1049px), (max-height: 759px) {
+  .machine-workspace {
+    grid-template-rows: auto auto;
+  }
+  .machine-workspace.inspecting > .inspection {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+  .clock-focus-heading {
+    flex-wrap: wrap;
+  }
+  #clock-focus-title {
+    flex: 1 1 40%;
+  }
+  #clock-focus-instruction {
+    flex: 1 1 45%;
+    text-align: right;
+  }
+  #clock-playback-note {
+    flex: 1;
+    max-width: none;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 650px) {
+  .clock-focus {
+    padding: 9px;
+  }
+  .clock-focus-heading {
+    gap: 6px;
+  }
+  #clock-focus-title,
+  #clock-focus-instruction,
+  #clock-playback-note {
+    flex-basis: 100%;
+    text-align: left;
+  }
+  #clock-playback-note {
+    margin-bottom: 3px;
+  }
+  .clock-flow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .clock-flow-step {
+    grid-template-columns: minmax(100px, .75fr) minmax(0, 1fr);
+    gap: 4px 10px;
+  }
+  .clock-flow-label {
+    grid-column: 1 / -1;
+  }
+  .clock-flow-detail {
+    grid-column: 1 / -1;
+  }
+  .clock-flow-arrow {
+    min-height: 14px;
+    font-size: 14px;
+    transform: rotate(90deg);
+  }
+  .clock-focus-footer {
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clock-flow-step {
+    transition: none;
+  }
+}
+
+/* Short desktop windows scroll rather than compressing the machine to a strip. */
+@media (min-width: 1050px) and (min-height: 760px) and (max-height: 839px) {
+  body.fit-workspace {
+    height: auto;
+    min-height: 100dvh;
+    overflow: auto;
+  }
+  .fit-workspace main {
+    height: 883px;
+    min-height: calc(100dvh - 84px);
+  }
+  .fit-workspace main:has(.main-column.scope-expanded) {
+    height: 963px;
+  }
+  .fit-workspace .main-column {
+    grid-template-rows: 30px 48px 550px 220px;
+  }
+  .fit-workspace .main-column.scope-expanded {
+    grid-template-rows: 30px 48px 550px 300px;
+  }
+}

@@ -1,0 +1,10 @@
+/target/
+/web/pkg/
+/guest/build/
+/node_modules/
+
+/web/programs/*.elf
+.DS_Store
+.env
+.env.*
+*.log

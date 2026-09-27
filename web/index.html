@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RV32IM simulator</title>
+  <link rel="stylesheet" href="datapath.css"><link rel="stylesheet" href="experience.css"><link rel="stylesheet" href="workspace.css"><link rel="stylesheet" href="clock-focus.css">
+</head>
+<body class="fit-workspace">
+<header><a class="brand" href="./">RV32IM <span>simulator</span></a><span class="machine-spec">1 core <b>·</b> 32 registers <b>·</b> 16 MiB RAM</span><div class="layout-controls"><button id="toggle-code" aria-pressed="true">Code</button><button id="fit-layout" aria-pressed="true">Fit window</button></div><button id="help" class="quiet">Machine model / controls</button></header>
+<div class="toolbar">
+  <div class="program-picker"><label for="example">Program</label><select id="example"><option value="flow">flow.c</option><option value="alu">alu.S</option><option value="array_sum">array_sum.c</option><option value="fibonacci">fibonacci.c</option><option value="sort">sort.c</option><option value="echo">echo.c</option></select><label class="upload" tabindex="0">Load ELF<input id="upload" type="file" accept=".elf" hidden></label></div>
+  <div class="transport"><button id="reset" title="Reset (R)">Reset</button><button id="back" title="Undo instruction (Left arrow)">← Back</button><button id="cycle" title="Advance one clock and replay its signals">Next clock</button><button id="step" title="Complete instruction (Right arrow)">Instruction →</button><button id="play" class="primary" title="Run / pause (Space)">Run</button></div>
+  <label class="speed"><span id="speed-label">1 clock / 2 s · signals</span><input id="speed" aria-label="Playback speed" type="range" min="0" max="4" value="0"></label>
+</div>
+<div id="error" role="alert" hidden></div>
+<main>
+  <aside class="code-panel panel">
+    <div class="panel-heading"><strong id="filename">alu.elf</strong><button id="to-main" class="quiet">To main</button></div>
+    <div class="tabs"><button class="active" data-code="assembly">Assembly</button><button data-code="source">Source</button><label class="follow"><input id="follow" type="checkbox" checked> Follow</label></div>
+    <div class="code-caption">● breakpoint <span>address / instruction</span></div>
+    <div id="assembly" class="assembly" role="list" aria-label="Disassembled instructions"></div>
+    <pre id="source" class="source" hidden></pre>
+    <div class="code-foot"><span id="symbol-label">_start</span><span>ILP32</span></div>
+  </aside>
+  <section class="main-column">
+    <div class="summary-row"><p id="program-hint">Integer operations and memory accesses</p><div class="execution-status"><span id="status-dot"></span><strong id="status">Loading engine</strong></div></div>
+    <div class="metrics"><div><span>CLOCKS</span><strong id="cycles">0</strong></div><div><span>INSTRUCTIONS DONE</span><strong id="retired">0</strong></div><div><span>PC</span><strong id="pc">80000000</strong></div><div><span>L1D HIT RATE</span><strong id="hit-rate">—</strong></div><div class="event-control"><label for="stop-event">Stop at next</label><select id="stop-event"><option value="8">ALU result</option><option value="1">Register write</option><option value="2">Cache miss</option><option value="4">Cache fill</option><option value="16">Cache stage</option><option value="32">Data cache stage</option><option value="64">Multiply/divide cycle</option></select><button id="next-event">Continue →</button></div></div>
+    <section class="value-watch panel" aria-label="Value to follow"><div class="watch-heading"><strong>Follow a value</strong><label>RAM 0x <input id="watch-address" maxlength="8" aria-label="Address of value to follow"></label><label><select id="watch-size" aria-label="Value width"><option value="4">32 bits</option><option value="2">16 bits</option><option value="1">8 bits</option></select></label><button id="watch-go" class="primary">Next value event →</button></div><div id="watch-array" class="watch-array"></div><div class="watch-caption"><code id="watch-label"></code><span id="watch-state">No value selected</span></div></section>
+    <section class="clock-focus panel" aria-label="What happens on this clock">
+      <div class="clock-focus-heading"><strong id="clock-focus-title">Before clock 1</strong><code id="clock-focus-instruction"></code><span id="clock-playback-note"></span><button id="clock-replay">Replay clock</button><button id="clock-next-signal">Next signal →</button><button id="clock-inspect">Inspect</button></div>
+      <div id="clock-flow" class="clock-flow"></div>
+      <div class="clock-focus-footer"><span id="clock-held-summary"></span><button id="clock-skip-wait" hidden>Finish wait →</button></div>
+    </section>
+    <section class="core panel" aria-label="CPU core 0">
+      <div class="core-heading"><div><strong>Machine / Core 0</strong><span>Multicycle · one instruction in flight</span></div><label>Registers <select id="register-format" aria-label="Register number format"><option value="hex">Hex</option><option value="unsigned">Unsigned</option><option value="signed">Signed</option></select></label></div>
+      <div class="phase-bar" aria-label="Phase completed on the selected clock"><span data-phase="Fetch">1 Fetch</span><span data-phase="Decode">2 Decode</span><span data-phase="Execute">3 Execute</span><span data-phase="Memory">4 Memory</span><span data-phase="Writeback">5 Writeback</span><span id="phase-caption"></span></div>
+      <div class="trace-context"><span id="trace-status">No decoded instruction</span><code id="current-instruction">—</code></div>
+      <div class="viewport-tools"><div><button data-focus="machine" class="active">Whole machine</button><button data-focus="core">Core</button><button data-focus="memory">Memory</button></div><label class="follow auto-inspect"><input id="auto-inspect" type="checkbox">Follow inspector</label><span id="viewport-context">Drag background to pan · wheel to zoom</span><button id="zoom-out" aria-label="Zoom out">−</button><output id="zoom-label">100%</output><button id="zoom-in" aria-label="Zoom in">+</button></div>
+      <div id="machine-viewport" tabindex="0" aria-label="Zoomable machine view">
+      <svg id="diagram" class="cpu-diagram" viewBox="-10 -10 1405 555" role="img" aria-label="CPU datapath with register file, read ports, ALU, load/store unit and writeback">
+        <defs><marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8z" fill="context-stroke"/></marker></defs>
+        <g class="node" id="pc-node"><rect x="28" y="24" width="130" height="57" rx="5"/><text class="label" x="42" y="45">PC</text><text class="value" id="fetch-detail" x="42" y="66">80000000</text></g>
+        <path class="signal control" d="M158 51 H184" marker-end="url(#arrow)"/>
+        <g id="instruction-node" class="node"><rect x="185" y="24" width="270" height="57" rx="5"/><text class="label" x="199" y="45">INSTRUCTION REGISTER</text><text class="value" id="instruction-word" x="199" y="66">—</text></g>
+        <path class="signal control" d="M455 51 H479" marker-end="url(#arrow)"/>
+        <g class="node inspectable" id="decoder-node" tabindex="0" role="button" aria-label="Inspect instruction decoding"><rect x="480" y="24" width="265" height="57" rx="5"/><text class="label" x="494" y="45">DECODER / CONTROL</text><text id="decode-detail" class="small-value" x="494" y="66">—</text></g>
+        <text class="note" x="774" y="45">NEXT PC</text><text id="next-pc" class="small-value" x="774" y="67">—</text>
+        <path class="signal control" d="M600 81 V100 H430 V172" marker-end="url(#arrow)"/>
+        <path class="signal control" d="M600 100 V151 H627 V164" marker-end="url(#arrow)"/>
+        <path class="signal control" d="M745 51 H768 V173" marker-end="url(#arrow)"/>
+        <text class="wire-label control-label" x="639" y="147">ALU select</text>
+        <g id="register-bank" class="register-bank"><rect x="28" y="110" width="285" height="355" rx="6"/><text class="label" x="42" y="133">REGISTER FILE</text><text class="note" x="296" y="133" text-anchor="end">32 × 32</text>
+          <foreignObject x="38" y="146" width="265" height="308"><div xmlns="http://www.w3.org/1999/xhtml" id="registers"></div></foreignObject>
+        </g>
+        <path id="wire-read-a" class="signal read-a" d="M313 205 H365" marker-end="url(#arrow)"/>
+        <path id="wire-read-b" class="signal read-b" d="M313 312 H365" marker-end="url(#arrow)"/>
+        <path id="wire-pc-a" class="signal read-a" d="M158 65 H167 V92 H345 V220 H365" marker-end="url(#arrow)"/>
+        <path id="wire-immediate" class="signal read-b" d="M613 81 V119 H352 V331 H365" marker-end="url(#arrow)"/>
+        <text class="wire-label a-label" x="325" y="194">A</text><text class="wire-label b-label" x="325" y="301">B</text>
+        <g class="node operand-node a-node"><rect x="365" y="174" width="130" height="64" rx="5"/><text id="operand-a-source" class="label" x="377" y="195">A SELECT</text><text id="operand-a" class="value" x="377" y="221">—</text></g>
+        <g class="node operand-node b-node"><rect x="365" y="280" width="130" height="64" rx="5"/><text id="operand-b-source" class="label" x="377" y="301">B SELECT</text><text id="operand-b" class="value" x="377" y="327">—</text></g>
+        <text id="read-a-label" class="note a-label" x="369" y="257">read port A —</text><text id="read-b-label" class="note b-label" x="369" y="364">read port B —</text>
+        <path id="wire-alu-a" class="signal read-a" d="M495 205 H545" marker-end="url(#arrow)"/>
+        <path id="wire-alu-b" class="signal read-b" d="M495 312 H520 V286 H545" marker-end="url(#arrow)"/>
+        <g id="alu-node" class="node inspectable" tabindex="0" role="button" aria-label="Inspect ALU internals"><rect x="545" y="165" width="165" height="180" rx="6"/><text class="label" x="559" y="188">ALU</text><text id="alu-function" class="label" x="696" y="188" text-anchor="end">—</text>
+          <g data-unit="adder"><rect class="unit-cell" x="555" y="201" width="145" height="25" rx="3"/><text class="unit-name" x="566" y="218">32-bit add / subtract</text></g>
+          <g data-unit="logic"><rect class="unit-cell" x="555" y="230" width="145" height="25" rx="3"/><text class="unit-name" x="566" y="247">AND · OR · XOR</text></g>
+          <g data-unit="shifter"><rect class="unit-cell" x="555" y="259" width="145" height="25" rx="3"/><text class="unit-name" x="566" y="276">5-stage shifter</text></g>
+          <g data-unit="compare"><rect class="unit-cell" x="555" y="288" width="145" height="25" rx="3"/><text class="unit-name" x="566" y="305">Comparator</text></g>
+          <text id="execute-detail" class="value" x="559" y="336">—</text>
+        </g>
+        <path id="wire-result" class="signal result" d="M710 211 H755" marker-end="url(#arrow)"/>
+        <g class="node inspectable" id="muldiv-node" data-unit="muldiv" tabindex="0" role="button" aria-label="Inspect multiply and divide"><rect x="545" y="383" width="165" height="59" rx="5"/><text class="label" x="559" y="404">MULTIPLY / DIVIDE</text><text id="muldiv-value" class="small-value" x="559" y="426">—</text></g>
+        <path id="wire-muldiv-a" class="signal read-a" d="M507 205 V398 H545" marker-end="url(#arrow)"/>
+        <path id="wire-muldiv-b" class="signal read-b" d="M519 312 V427 H545" marker-end="url(#arrow)"/>
+        <path id="wire-muldiv-result" class="signal result" d="M710 412 H733 V247 H755" marker-end="url(#arrow)"/>
+        <g class="mux"><path d="M755 175 L781 187 V303 L755 315z"/><text class="note" x="765" y="251" text-anchor="middle" transform="rotate(-90 765 251)">WRITEBACK SELECT</text></g>
+        <path id="wire-write-data" class="signal write" d="M781 239 H812" marker-end="url(#arrow)"/>
+        <g id="write-node" class="node write-node"><rect x="812" y="174" width="156" height="116" rx="5"/><text class="label" x="826" y="195">WRITE PORT</text><text id="write-register" class="value" x="826" y="221">—</text><text id="write-value" class="value" x="826" y="244">—</text><text id="write-enable" class="note" x="826" y="275">WE = 0</text></g>
+        <text id="write-source" class="wire-label" x="815" y="157">source —</text>
+        <path id="wire-writeback" class="signal write" d="M890 290 V490 H171 V465" marker-end="url(#arrow)"/>
+        <text id="write-detail" class="wire-label write-label" x="332" y="482">rd / WDATA</text>
+        <path id="wire-address" class="signal address" d="M710 329 H745 V368 H780" marker-end="url(#arrow)"/>
+        <path id="wire-store" class="signal read-b" d="M313 423 H507 V460 H765 V412 H780" marker-end="url(#arrow)"/>
+        <path id="wire-load" class="signal read-a" d="M875 348 V326 H767 V305" marker-end="url(#arrow)"/>
+        <g class="node" id="load-store-node"><rect x="780" y="348" width="188" height="104" rx="5"/><text class="label" x="794" y="370">LOAD / STORE</text><text id="memory-detail" class="value" x="794" y="393">—</text><text id="memory-value" class="small-value" x="794" y="416">—</text><text id="memory-route" class="note" x="794" y="438">L1D / UART</text></g>
+
+        <g id="memory-layout">
+          <rect class="memory-region" x="1008" y="0" width="382" height="514" rx="8"/>
+          <path class="memory-wire" data-level="L2I" d="M1108 92 V124 H1198 V152"/>
+          <path class="memory-wire" data-level="L2D" d="M1291 92 V124 H1198 V152"/>
+          <path class="memory-wire" data-level="L3" d="M1198 228 V266"/>
+          <path class="memory-wire" data-level="RAM" d="M1198 342 V380"/>
+        <g transform="translate(1002 16)" class="cache-node" data-cache="0" tabindex="0" role="button" aria-label="Inspect L1 instruction cache"><rect x="28" y="14" width="157" height="62" rx="5"/><text class="label" x="42" y="36">L1 INSTRUCTION</text><text id="cache-label-0" class="cache-detail" x="42" y="59">0 / 8 lines</text></g>
+        <g transform="translate(1185 -66)" class="cache-node" data-cache="1" tabindex="0" role="button" aria-label="Inspect L1 data cache"><rect x="28" y="96" width="157" height="62" rx="5"/><text class="label" x="42" y="118">L1 DATA</text><text id="cache-label-1" class="cache-detail" x="42" y="141">0 / 8 lines</text></g>
+        <g transform="translate(828 105)" class="cache-node" data-cache="2" tabindex="0" role="button" aria-label="Inspect L2 cache"><rect x="300" y="47" width="140" height="76" rx="5"/><text class="label" x="314" y="71">L2 · 2 KiB</text><text id="cache-label-2" class="cache-detail" x="314" y="101">0 / 32 lines</text></g>
+        <g transform="translate(618 219)" class="cache-node" data-cache="3" tabindex="0" role="button" aria-label="Inspect L3 cache"><rect x="510" y="47" width="140" height="76" rx="5"/><text class="label" x="524" y="71">L3 · 8 KiB</text><text id="cache-label-3" class="cache-detail" x="524" y="101">0 / 128 lines</text></g>
+        <g transform="translate(408 333)" id="ram-node" class="node inspectable" tabindex="0" role="button" aria-label="Inspect RAM"><rect x="720" y="47" width="140" height="76" rx="5"/><text class="label" x="734" y="71">RAM</text><text class="cache-detail" x="734" y="101">16 MiB</text></g>
+        <g transform="translate(402 333)" id="uart-unit" class="node"><rect x="885" y="47" width="83" height="76" rx="5"/><text class="label" x="899" y="71">UART</text><text class="note" x="899" y="101">console</text></g>
+          <text class="note" x="1030" y="17">512 B · 8 SETS</text><text class="note" x="1213" y="17">512 B · 8 SETS</text>
+          <text class="note" x="1025" y="505">64-B LINES · DIRECT MAPPED · WRITE-THROUGH</text>
+        </g>
+        <g id="machine-buses">
+          <path id="bus-fetch" class="signal control" d="M158 39 V7 H1108 V30" marker-end="url(#arrow)"/>
+          <path id="bus-instruction" class="signal control" d="M1030 62 H985 V96 H320 V81" marker-end="url(#arrow)"/>
+          <path id="bus-data" class="signal read-a" d="M968 399 H991 V112 H1291 V92" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+          <path id="bus-output" class="signal write" d="M968 420 H1020 V480 H1328 V456" marker-end="url(#arrow)"/>
+          <text class="note" x="1028" y="469">UART TX</text>
+        </g>
+      </svg></div>
+      <div class="transaction"><span id="access-kind">READY</span><span id="access-info">No memory access</span><span id="wait-time"></span></div><div class="wait-track"><div id="wait-bar"></div></div>
+      <div class="register-inspection"><div class="register-summary"><strong id="selected-register">x0 / zero</strong><code id="register-value">00000000</code><span id="register-decimal">unsigned 0 · signed 0</span><label class="follow"><input id="follow-register" type="checkbox" checked> Follow writes</label><button id="register-bits-toggle" aria-expanded="false">Bits</button><span class="port-legend"><i class="a-dot"></i>read A <i class="b-dot"></i>read B <i class="w-dot"></i>write</span></div><div id="register-bits" class="register-bits" aria-label="Selected register bits"></div></div>
+    </section>
+    <section class="cycle-explanation panel" aria-label="Inside the selected clock">
+      <div class="cycle-heading"><strong id="cycle-caption">Before clock 1</strong><span id="instruction-age"></span><button id="expand-cycle" aria-expanded="false">Expand</button><button id="cycle-inspect" title="Open the relevant component">Inspect</button></div>
+      <div class="cycle-context"><code id="cycle-instruction">Instruction not fetched</code></div>
+      <div class="cycle-title"><strong id="cycle-title">Ready</strong><button id="finish-wait" hidden>Finish wait →</button></div>
+      <div id="cycle-progress" hidden><div><span id="cycle-progress-label"></span><span id="cycle-progress-count"></span></div><progress id="cycle-progress-bar" max="1" value="0"></progress></div>
+      <div class="inside-controls" role="group" aria-label="Inspect within this clock without running the CPU"><button data-subcycle="0">1 · Inputs</button><span>→</span><button data-subcycle="1">2 · Logic</button><span>→</span><button data-subcycle="2" class="active">3 · Edge</button></div>
+      <div id="cycle-body" class="cycle-body"></div>
+      <div class="cycle-next"><span>Next clock</span><strong id="cycle-next"></strong></div>
+      <div class="cycle-display-note" id="cycle-display-note">Inputs → logic → latch · display replay; the CPU clock stays paused</div>
+    </section>
+    <section class="timeline panel" aria-label="Cycle timeline">
+      <div class="panel-heading"><strong>Clock signals</strong><span id="history-range" class="muted"></span><label>Probe <select id="wave-register" aria-label="Register to probe"></select></label><select id="wave-span" aria-label="Visible clock cycles"><option value="12" selected>12 clocks</option><option value="24">24 clocks</option><option value="48">48 cycles</option><option value="96">96 cycles</option></select></div>
+      <div class="timeline-transport"><button id="cycle-back" title="Previous clock edge">← Cycle</button><input id="cycle-scrubber" type="range" min="0" max="0" value="0" aria-label="Seek recorded cycle"><label>Cycle <input id="cycle-target" type="number" min="0" value="0" aria-label="Cycle to seek"></label><button id="cycle-forward">Cycle →</button><button id="to-frontier">Latest</button></div>
+      <div class="wave-scroll"><svg id="waveform" viewBox="0 0 1100 214" role="img" aria-label="Clock, CPU phase, register D and Q, write enable and memory handshake waveforms"></svg></div>
+      <div class="latch-summary"><span id="latch-register">x10 / a0</span><span>D <code id="latch-d">—</code></span><span id="latch-clock">↑ CLK · WE=0</span><span>Q <code id="latch-q">00000000</code></span><small>D: next input · Q: stored · WE: write enable</small></div>
+    </section>
+    <section class="provenance panel" aria-label="Value dependencies">
+      <div class="panel-heading"><strong>Value history</strong><code id="trace-selection">—</code><button id="trace-memory" class="quiet">Return to watched RAM</button></div>
+      <div id="value-locations" class="value-locations"></div>
+      <div class="trace-scroll"><svg id="value-graph" preserveAspectRatio="xMinYMin meet" viewBox="0 0 960 100" role="img" aria-label="Versioned value producers and consumers"></svg></div>
+      <div id="trace-detail" class="trace-detail"></div><div id="trace-note" class="detail-note"></div>
+    </section>
+    <section class="inspection panel">
+      <div class="tabs inspection-tabs" role="tablist" aria-label="Component inspector"><button class="active" role="tab" aria-selected="true" data-inspector="alu">ALU internals</button><button role="tab" aria-selected="false" data-inspector="cache">Cache internals</button><button role="tab" aria-selected="false" data-inspector="ram">RAM bytes</button><button role="tab" aria-selected="false" data-inspector="decode">Instruction decode</button></div>
+      <div id="view-alu" class="component-view">
+        <div class="inspector-heading"><strong id="alu-heading">ALU</strong><code id="alu-detail">No ALU result</code></div>
+        <div class="unit-tabs"><button class="active" data-alu-view="adder">Adder / subtractor</button><button data-alu-view="logic">Bitwise logic</button><button data-alu-view="shifter">Barrel shifter</button><button data-alu-view="compare">Comparator</button><button data-alu-view="muldiv">Multiply / divide</button><label class="follow"><input id="follow-unit" type="checkbox" checked> Follow operation</label></div>
+        <div id="alu-empty" class="empty">No executed ALU operation. Use “Stop at next: ALU result”.</div>
+        <div id="alu-content" hidden>
+          <div class="alu-operands"><span>A <code id="alu-a">—</code></span><span>B <code id="alu-b">—</code></span><span>SELECT <strong id="alu-select">—</strong></span><span>RESULT <code id="alu-output">—</code></span></div>
+          <div id="adder-view">
+            <div class="adder-controls"><span id="adder-summary"></span><div><button id="propagate">Reveal carries</button><button id="show-carries">Show all</button><span class="muted">Display only; clock unchanged</span></div></div>
+            <div class="bit-scroll"><div id="adder-bits" class="bit-matrix"></div></div>
+            <div class="bit-selection"><button id="bit-prev" aria-label="Previous bit">←</button><strong id="bit-title">Full adder · bit 0</strong><button id="bit-next" aria-label="Next bit">→</button><span id="bit-equation"></span></div>
+            <div class="gate-scroll"><svg id="gate-diagram" viewBox="0 0 850 215" role="img" aria-label="Selected full adder gates">
+              <path class="gate-wire" data-gate-signal="a" d="M36 40 H114 M72 40 V127 H114"/><path class="gate-wire" data-gate-signal="effective_b" d="M36 78 H95 V62 H114 M58 78 V151 H114"/>
+              <path class="gate-wire" data-gate-signal="propagate" d="M199 51 H355 M248 51 V124 H355"/>
+              <path class="gate-wire" data-gate-signal="carry_in" d="M265 190 H320 V75 H355 M320 148 H355"/>
+              <path class="gate-wire" data-gate-signal="sum" d="M440 62 H730"/>
+              <path class="gate-wire" data-gate-signal="generate" d="M199 139 H225 V170 H540 V150 H575"/>
+              <path class="gate-wire" data-gate-signal="carry_term" d="M440 135 H575"/>
+              <path class="gate-wire" data-gate-signal="carry_out" d="M660 143 H730"/>
+              <g class="gate"><rect x="114" y="28" width="85" height="48" rx="5"/><text x="157" y="49">XOR</text><text id="gate-p" class="gate-value" x="157" y="67">0</text></g>
+              <g class="gate"><rect x="114" y="115" width="85" height="48" rx="5"/><text x="157" y="137">AND</text><text id="gate-g" class="gate-value" x="157" y="154">0</text></g>
+              <g class="gate"><rect x="355" y="39" width="85" height="48" rx="5"/><text x="398" y="59">XOR</text><text id="gate-sum" class="gate-value" x="398" y="78">0</text></g>
+              <g class="gate"><rect x="355" y="112" width="85" height="48" rx="5"/><text x="398" y="132">AND</text><text id="gate-h" class="gate-value" x="398" y="151">0</text></g>
+              <g class="gate"><rect x="575" y="119" width="85" height="48" rx="5"/><text x="618" y="139">OR</text><text id="gate-cout" class="gate-value" x="618" y="158">0</text></g>
+              <text id="gate-a" class="gate-input" x="10" y="25">A=0</text><text id="gate-b" class="gate-input" x="10" y="100">B′=0</text><text id="gate-cin" class="gate-input" x="239" y="208">Cin=0</text>
+              <text id="gate-sum-label" class="gate-output" x="742" y="67">SUM=0</text><text id="gate-carry-label" class="gate-output" x="742" y="148">Cout=0</text>
+              <text class="note" x="239" y="40">propagate</text><text class="note" x="260" y="166">generate</text>
+            </svg></div>
+          </div>
+          <div id="logic-view" hidden><div class="bit-scroll"><div id="logic-bits" class="bit-matrix"></div></div><p class="detail-note">Each column is an independent bitwise gate. The result selector chooses AND, OR, or XOR.</p></div>
+          <div id="shifter-view" hidden><p id="shift-summary" class="detail-note"></p><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Control bit</th><th>Input</th><th>Output</th></tr></thead><tbody id="shift-stages"></tbody></table></div></div>
+          <div id="compare-view" hidden><div id="compare-signals" class="signal-grid"></div><p class="detail-note">Signed comparison checks operand signs and the subtraction sign. Unsigned comparison uses the subtractor’s carry-out. These signals are not architectural flag registers.</p></div>
+          <div id="muldiv-view" hidden>
+            <div class="md-controls"><button id="md-next" class="primary">Next multiply/divide cycle →</button><strong id="md-progress">No multiply/divide operation</strong></div>
+            <div id="md-empty" class="empty">Advance to a multiply, divide, or remainder instruction.</div>
+            <div id="md-content" hidden>
+              <div class="md-phases"><span data-md-phase="prepare">1 · Prepare operands</span><span data-md-phase="iterate">2–33 · Process 32 bits</span><span data-md-phase="finish">34 · Sign / result select</span></div>
+              <p id="md-action" class="md-action"></p><div id="md-iterations" class="md-iterations" aria-label="Operand bits processed"></div>
+              <div class="schematic-scroll"><svg id="md-diagram" viewBox="0 0 1000 345" role="img" aria-label="Multiply/divide registers, arithmetic, shifts and result selection"></svg></div>
+              <div id="muldiv-signals" class="signal-grid"></div><p id="md-special" class="detail-note"></p>
+              <div class="md-circuit-controls"><label>Inspect circuit <select id="md-circuit" aria-label="Multiply/divide circuit"></select></label><span id="md-circuit-summary"></span></div>
+              <div class="bit-scroll"><div id="md-bits" class="bit-matrix"></div></div>
+              <div class="bit-selection"><button id="md-bit-prev" aria-label="Previous multiply/divide bit">←</button><strong id="md-bit-title"></strong><button id="md-bit-next" aria-label="Next multiply/divide bit">→</button><span id="md-bit-equation"></span></div>
+              <div class="gate-scroll"><svg id="md-control-gates" viewBox="0 0 850 153" role="img" aria-label="Selected partial-product AND gate or remainder multiplexer gates"></svg></div>
+              <div id="md-gates" class="gate-scroll"></div>
+              <p class="detail-note">One prepare cycle, 32 bit iterations, one sign/select cycle. Registers above show before → after this clock. Select a bit to inspect its gates; inspection does not advance the clock.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="view-cache" class="component-view" hidden>
+        <div class="inspector-heading"><label><strong>Cache</strong> <select id="cache-select" aria-label="Cache to inspect"><option value="0">L1 instruction</option><option value="1">L1 data</option><option value="2">L2</option><option value="3">L3</option></select></label><span id="cache-geometry"></span><label class="follow"><input id="follow-cache" type="checkbox" checked> Follow lookup</label></div>
+        <div class="cache-stepper"><button id="cache-next" class="primary">Next cache stage →</button><label class="follow"><input id="cache-data-only" type="checkbox" checked> Data accesses only</label><strong id="cache-stage-label">No request</strong></div>
+        <div id="cache-journey" class="cache-journey"></div>
+        <div id="cache-stats" class="cache-stats"></div><div id="lookup-context" class="lookup-context">No lookup recorded</div>
+        <div id="address-split" class="address-split"></div>
+        <div class="cache-circuit"><div><span>INDEX</span><strong id="circuit-index">—</strong><small>select one set</small></div><b>→</b><div><span>TAG RAM / VALID</span><strong id="circuit-tag">—</strong><small id="circuit-valid">V = —</small></div><b>→</b><div><span>TAG COMPARATOR</span><strong id="circuit-compare">—</strong><small>stored XOR requested</small></div><b>→</b><div><span>VALID AND EQUAL</span><strong id="circuit-hit">—</strong><small>hit / miss control</small></div><b>→</b><div><span>DATA / BYTE SELECT</span><strong id="circuit-data">—</strong><small id="circuit-offset">offset —</small></div></div>
+        <div id="tag-compare" class="tag-compare"></div>
+        <details class="tag-details"><summary>Tag comparator bits</summary><div class="bit-scroll"><div id="tag-bits" class="bit-matrix"></div></div></details>
+        <div class="cache-columns"><div class="table-scroll cache-table"><table><thead><tr><th>Set</th><th>V</th><th>Stored tag</th><th>Line address</th><th>First 8 bytes</th></tr></thead><tbody id="cache-lines"></tbody></table></div><div class="line-inspector"><strong id="line-title">Set 0</strong><div id="line-bytes" class="bytes-grid"></div><div id="line-note" class="detail-note"></div></div></div>
+      </div>
+      <div id="view-decode" class="component-view" hidden><div class="inspector-heading"><strong id="decode-format">Instruction decode</strong><code id="decode-context">No decoded instruction</code></div><div class="bit-scroll"><div id="instruction-fields" class="instruction-fields"></div></div><p id="decoded-immediate" class="detail-note"></p><div id="decode-signals" class="signal-grid"></div></div>
+      <div id="view-ram" class="component-view" hidden><div class="inspector-heading"><strong>RAM bytes</strong><label>0x <input id="memory-address" aria-label="Memory address in hexadecimal" value="80000000" maxlength="8"></label><label class="follow"><input id="follow-memory" type="checkbox" checked> Follow data</label></div><div id="memory-bytes" class="bytes-grid ram-grid"></div><div id="memory-note" class="detail-note"></div></div>
+    </section>
+    <div class="bottom-grid">
+      <section class="panel history-panel"><div class="panel-heading"><strong>Change history</strong><select id="event-filter" aria-label="Filter events"><option value="all">All events</option><option value="register_write">Register writes</option><option value="cache_miss">Cache misses</option><option value="cache_fill">Cache fills</option><option value="output">Output</option><option value="muldiv_step">Multiply/divide cycles</option></select></div><div class="table-scroll history-scroll"><table><thead><tr><th>Cycle</th><th>Instruction PC</th><th>Change</th></tr></thead><tbody id="event-list"></tbody></table></div></section>
+      <section class="panel console-panel"><div class="panel-heading"><strong>Terminal</strong><span class="muted">UART · select an output byte below</span></div><pre id="console" aria-label="Program output" aria-live="polite"></pre><div id="output-bytes" class="output-bytes" aria-label="Output byte origins"></div><form id="input-form"><span>›</span><input id="terminal-input" autocomplete="off" aria-label="Terminal input" placeholder="Input (Enter to send)"><button aria-label="Send input">↵</button></form></section>
+    </div>
+  </section>
+</main>
+<footer>Space: run / pause <b>·</b> →: instruction <b>·</b> ←: back <b>·</b> R: reset</footer>
+<dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="Close help">×</button><h2>Machine model</h2><p>One RV32IM core, little endian, 32 integer registers, 16 MiB RAM. Instructions run sequentially through fetch, decode, execute, memory, and writeback. Read ports latch at decode; the write port commits at writeback.</p><p>The ALU uses a 32-bit ripple-carry adder/subtractor, bitwise logic, a five-stage barrel shifter, and a comparator. The simulator uses these outputs to execute instructions. Carry reveal is a display control and does not advance CPU cycles. Multiply/divide uses a 64-bit shift-and-add multiplier and a 33-bit restoring divider. Both take 34 execute cycles: prepare, 32 bit iterations, then sign correction and result selection. AND gates form partial products; a subtractor and AND/OR multiplexer update the remainder. All arithmetic comes from the displayed full-adder gates. Gate propagation delays are not modeled.</p><p>Caches use 64-byte lines, direct mapping and write-through stores. Lookup latencies accumulate: L1 1, L2 6, L3 18, RAM 60 cycles. Each cache lookup completes before the next level starts. A RAM read returns a 64-byte line; refills then take one cycle per upper cache, from L3 toward L1. A cold read takes 88 cycles; L2 and L3 hits take 8 and 27 cycles. Stores add a 60-cycle write-through. Lookup probes preserve pre-fill tags; the table shows current contents. Next cache stage stops at each lookup, RAM return, refill, or write-through. Individual bus beats are not modeled.</p><p>Click a register for its bits, an ALU unit for its internals, or a cache for its last lookup and stored lines. Continue stops at the next selected event. Breakpoints stop before instruction fetch. Back restores the preceding instruction boundary, including cache probes and output, for up to 128 instructions. Change history retains 128 events.</p><p>Inside the selected clock shows actual inputs, logic work, and values latched at its edge. The three display steps do not run the CPU or model electrical propagation delay. During a memory stall, the request remains outstanding and the modeled latency counter advances; RAM internals are not simulated. The compact workspace keeps the machine, explanation, signals, and terminal visible together. Use Code or Fit window to change the layout and Expand to enlarge a detail panel.</p><p>The timeline retains up to 4096 cycle samples within 128 instruction checkpoints. Seeking restores and replays the real machine, including cache contents and output. New terminal input in the past starts a new execution branch. Waveforms show state at clock edges, not electrical propagation delays. Value history follows versioned writes; equal numbers are not assumed to share an origin. Address dependencies are shown separately from data dependencies.</p><p>Load static ELF32 executables compiled for <code>rv32im / ilp32</code> using the supplied linker script and runtime. A guest OS, disk, source-level stepping, floating point, and overlapping pipeline execution are not implemented.</p></dialog>
+<script type="module" src="main.js"></script>
+</body></html>
