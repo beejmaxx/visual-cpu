@@ -8,6 +8,32 @@ This is a working prototype.
 Its CPU finishes one instruction at a time through fetch, decode, execute,
 memory, and writeback. An overlapping pipeline is a later milestone.
 
+## Screenshots
+
+The machine paused after `add a0, a1, a2`: the clock view shows `x10` changing
+from 0 to 8, alongside the register file, memory hierarchy, and signal history.
+
+![CPU overview with register writeback and clock history](docs/screenshots/overview.png)
+
+<details>
+<summary>Inside the ALU: full-adder gates and carry bits</summary>
+
+The same addition, with bit 3 selected to inspect its XOR, AND, and OR gates.
+
+![ALU inspector showing 5 plus 3 and the full-adder circuit for bit 3](docs/screenshots/alu.png)
+
+</details>
+
+<details>
+<summary>Inside a cache: address decoding, tag comparison, and stored bytes</summary>
+
+An L1 instruction-cache hit, with tag/index/offset decoding and the selected
+64-byte line. The four bytes returned for the instruction are highlighted.
+
+![L1 instruction cache showing lookup logic, valid entries, and a 64-byte cache line](docs/screenshots/cache.png)
+
+</details>
+
 ## Run the interface
 
 First follow the **Build** instructions below to generate the WebAssembly engine
